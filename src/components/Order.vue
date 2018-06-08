@@ -110,3 +110,101 @@ h2 { text-decoration: underline; }
 .button-field { display: flex; justify-content: center; }
 #left-line { margin-top:27px; }
 </style>
+
+<script>
+import axios from 'axios';
+
+export default {
+    data(){
+        return {
+            stripeKey: 'YOUR_STRIPE_PUBLIC_KEY',
+
+            // fields
+            name: 'Connor Leech',
+            email: 'connor@employbl.com',
+            specialNote: 'This is the text to put on the bundle of sticks',
+            address: {
+                street: '123 Something Lane',
+                city: 'San Francisco',
+                state: 'CA',
+                zip: '94607'
+            },
+
+            card: {
+                number: '4242424242424242',
+                cvc: '123',
+                exp_month: '01',
+                exp_year: '19'
+            },
+
+            // validation
+            cardNumberError: null,
+            cardCvcError: null,
+            cardMonthError: null,
+            cardYearError: null,
+            cardCheckSending: false,
+            cardCheckError: false,
+            cardCheckErrorMessage: ''
+        }
+    },
+    methods: {
+        validate(){
+            this.clearCardErrors();
+            let valid = true;
+            if(!this.card.number){ valid = false; this.cardNumberError = "Card Number is Required"; }
+            if(!this.card.cvc){ valid = false; this.cardCvcError = "CVC is Required"; }
+            if(!this.card.exp_month){ valid = false; this.cardMonthError = "Month is Required"; }
+            if(!this.card.exp_year){ valid = false; this.cardYearError = "Year is Required"; }
+            if(valid){
+                this.createToken();
+            }
+        },
+        clearCardErrors(){
+            this.cardNumberError = null;
+            this.cardCvcError = null;
+            this.cardMonthError = null;
+            this.cardYearError = null;
+        },
+        createToken() {
+            this.cardCheckError = false;
+            window.Stripe.setPublishableKey(this.stripeKey);
+            window.Stripe.createToken(this.card, $.proxy(this.stripeResponseHandler, this));
+            this.cardCheckSending = true;
+        },
+        stripeResponseHandler(status, response) {
+            this.cardCheckSending = false;
+            if (response.error) {
+                this.cardCheckErrorMessage = response.error.message;
+                this.cardCheckError = true;
+
+                console.error(response.error);
+            } else {
+
+                // token to create a charge on our server
+                var token_from_stripe = response.id;
+
+                var request = {
+                    name: this.name,
+                    email: this.email,
+                    engravingText: this.engravingText,
+                    address: this.address,
+                    card: this.card,
+                    token_from_stripe: token_from_stripe
+                };
+
+                // Send to our server
+                axios.post(`${window.endpoint}/charge`, request)
+                    .then((res) => {
+                        var error = res.data.error;
+                        var charge = res.data.charge;
+                        if (error){
+                            console.error(error);
+                        } else {
+                            this.$router.push({ path: `order-complete/${charge.id}` })
+                        }
+                    });
+            }
+        }
+    }
+}
+</script>
